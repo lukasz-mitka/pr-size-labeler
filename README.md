@@ -1,33 +1,12 @@
-<p align="center">
-  <a href="https://codely.com">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://codely.com/logo/codely_logo-dark.svg">
-      <source media="(prefers-color-scheme: light)" srcset="https://codely.com/logo/codely_logo-light.svg">
-      <img alt="Codely logo" src="https://codely.com/logo/codely_logo.svg">
-    </picture>
-  </a>
-</p>
-
-<h1 align="center">
-  🏷 Pull Request Size Labeler
-</h1>
-
-<p align="center">
-    <a href="https://github.com/CodelyTV"><img src="https://img.shields.io/badge/CodelyTV-OS-green.svg?style=flat-square" alt="codely.tv"/></a>
-    <a href="http://pro.codely.tv"><img src="https://img.shields.io/badge/CodelyTV-PRO-black.svg?style=flat-square" alt="CodelyTV Courses"/></a>
-    <a href="https://github.com/marketplace/actions/pull-request-size-labeler"><img src="https://img.shields.io/github/v/release/CodelyTV/pr-size-labeler?style=flat-square" alt="GitHub Action version"></a>
-</p>
-
-<p align="center">
-    Visualize and optionally limit the size of your Pull Requests
-</p>
+# Pull Request Size Labeler
+Add size labels to your pull requests based on the number of changes.
 
 ## 🚀 Usage
 
 Create a file named `labeler.yml` inside the `.github/workflows` directory and paste the following configuration.
 
 > [!NOTE]
-> Take into account that PR Size Labeler considers any line addition, deletion, or modification as a change by default, but you can configure it with [optional arguments](https://github.com/CodelyTV/pr-size-labeler?tab=readme-ov-file#%EF%B8%8F-arguments) such as `files_to_ignore`, `ignore_file_deletions`, or even `ignore_line_deletions`.
+> Take into account that PR Size Labeler considers any line addition, deletion, or modification as a change by default, but you can configure it with optional arguments such as `files_to_ignore`, `ignore_file_deletions`, or even `ignore_line_deletions`.
 
 ```yml
 name: labeler
@@ -41,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Label the PR size
     steps:
-      - uses: codelytv/pr-size-labeler@v1
+      - uses: lukasz-mitka/pr-size-labeler@v1
         with:
           xs_label: 'size/xs'
           xs_max_size: '10'
@@ -109,7 +88,7 @@ files_to_ignore: |
 
 ## Contributing
 
-If you would like to help improve the project, please read the [contribution guidelines](https://github.com/CodelyTV/pr-size-labeler/blob/main/.github/CONTRIBUTIONS.md).
+If you would like to help improve the project, please read the [contribution guidelines](.github/CONTRIBUTIONS.md).
 
 ## ⚖️ License
 

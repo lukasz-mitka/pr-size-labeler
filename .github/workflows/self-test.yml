@@ -1,0 +1,18 @@
+name: Labeler Self-Test
+
+# With pull_request_target, checkout uses the base repository's default branch
+# by default, so uses: ./ never runs fork code with this job's write-capable token.
+on: [pull_request_target]
+
+jobs:
+  labeler:
+    runs-on: ubuntu-latest
+    name: Label the PR size
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

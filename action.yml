@@ -69,25 +69,29 @@ inputs:
     required: false
     default: 'false'
 runs:
-  using: 'docker'
-  image: 'Dockerfile'
-  args:
-    - --github_token=${{ inputs.GITHUB_TOKEN }}
-    - --github_api_url=${{ inputs.github_api_url }}
-    - --xs_label=${{ inputs.xs_label }}
-    - --xs_max_size=${{ inputs.xs_max_size }}
-    - --s_label=${{ inputs.s_label }}
-    - --s_max_size=${{ inputs.s_max_size }}
-    - --m_label=${{ inputs.m_label }}
-    - --m_max_size=${{ inputs.m_max_size }}
-    - --l_label=${{ inputs.l_label }}
-    - --l_max_size=${{ inputs.l_max_size }}
-    - --xl_label=${{ inputs.xl_label }}
-    - --fail_if_xl=${{ inputs.fail_if_xl }}
-    - --message_if_xl="${{ inputs.message_if_xl }}"
-    - --files_to_ignore=${{ inputs.files_to_ignore }}
-    - --ignore_line_deletions=${{ inputs.ignore_line_deletions }}
-    - --ignore_file_deletions=${{ inputs.ignore_file_deletions }}
+  using: 'composite'
+  steps:
+    - name: Label pull request
+      shell: bash
+      env:
+        PR_SIZE_LABELER_ACTION_PATH: ${{ github.action_path }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.GITHUB_TOKEN }}
+        INPUT_GITHUB_API_URL: ${{ inputs.github_api_url }}
+        INPUT_XS_LABEL: ${{ inputs.xs_label }}
+        INPUT_XS_MAX_SIZE: ${{ inputs.xs_max_size }}
+        INPUT_S_LABEL: ${{ inputs.s_label }}
+        INPUT_S_MAX_SIZE: ${{ inputs.s_max_size }}
+        INPUT_M_LABEL: ${{ inputs.m_label }}
+        INPUT_M_MAX_SIZE: ${{ inputs.m_max_size }}
+        INPUT_L_LABEL: ${{ inputs.l_label }}
+        INPUT_L_MAX_SIZE: ${{ inputs.l_max_size }}
+        INPUT_XL_LABEL: ${{ inputs.xl_label }}
+        INPUT_FAIL_IF_XL: ${{ inputs.fail_if_xl }}
+        INPUT_MESSAGE_IF_XL: ${{ inputs.message_if_xl }}
+        INPUT_FILES_TO_IGNORE: ${{ inputs.files_to_ignore }}
+        INPUT_IGNORE_LINE_DELETIONS: ${{ inputs.ignore_line_deletions }}
+        INPUT_IGNORE_FILE_DELETIONS: ${{ inputs.ignore_file_deletions }}
+      run: bash "$PR_SIZE_LABELER_ACTION_PATH/src/main.sh"
 branding:
   icon: 'tag'
   color: 'green'

@@ -15,6 +15,5 @@ _If there is a particular part of the code that you need the reviewer to examine
 ## How to test
 _Please replace this line with instructions on how to test your changes. Use screenshots or recordings if necessary._
 
-## Link to issues addressed
-- [ISSUE-XYZ](https://github.com/CodelyTV/pr-size-labeler/issues/XYZ)
-- [ISSUE-XYZ](https://github.com/CodelyTV/pr-size-labeler/issues/XYZ)
+## Related Issues
+_Please link any related issues here._

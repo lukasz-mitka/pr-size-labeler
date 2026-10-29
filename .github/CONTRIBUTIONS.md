@@ -30,7 +30,7 @@ Tests are written using [bashunit](https://bashunit.com/).
 To install the vendor dependencies, run:
 
 ```bash
-./install-dependencies.sh
+./install-dev-dependencies.sh
 ```
 
 To run all tests, use the following command:
