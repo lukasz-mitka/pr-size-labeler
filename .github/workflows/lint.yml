@@ -16,5 +16,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Set up excludes
+        if: github.event_name == 'push' && github.ref_name == 'main'
+        run: |
+          echo "SKIP=no-commit-to-branch" >> $GITHUB_ENV
+
       - name: Run pre-commit with prek
         uses: j178/prek-action@v3.1.0
