@@ -19,3 +19,14 @@ repos:
       - id: check-symlinks
       - id: detect-private-key
       - id: no-commit-to-branch
+
+  - repo: https://github.com/koalaman/shellcheck-precommit
+    rev: v0.11.0
+    hooks:
+    - id: shellcheck
+      args: [--external-sources]
+
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.14.1-1
+    hooks:
+      - id: shfmt

@@ -1,48 +1,53 @@
 #!/bin/bash
+# shellcheck disable=SC2329
 
 function set_up() {
-  source ./src/misc.sh
-  source ./src/github.sh
-  label_requests=''
-  file_requests=''
+	source ./src/misc.sh
+	source ./src/github.sh
+	label_requests=''
+	file_requests=''
 }
 
 function tear_down() {
-  if [ -n "$label_requests" ]; then
-    rm -f "$label_requests"
-  fi
-  if [ -n "$file_requests" ]; then
-    rm -f "$file_requests"
-  fi
+	if [ -n "$label_requests" ]; then
+		rm -f "$label_requests"
+	fi
+	if [ -n "$file_requests" ]; then
+		rm -f "$file_requests"
+	fi
 }
 
 function mock_pull_request_api() {
-  cat ./tests/fixtures/pull_request_api
+	cat ./tests/fixtures/pull_request_api
 }
 
 function mock_pull_request_files_api() {
-  cat ./tests/fixtures/pull_request_files_api
+	cat ./tests/fixtures/pull_request_files_api
+}
+
+function mock_labels_api() {
+	echo '[{"name":"size/needs review"},{"name":"size/xl"}]'
 }
 
 function mock_not_found_response() {
-  echo 'curl: (22) HTTP 403' >&2
-  return 22
+	echo 'curl: (22) HTTP 403' >&2
+	return 22
 }
 
 function mock_label_write_denied() {
-  case "$*" in
-    *'-X POST'*) mock_not_found_response ;;
-    *) mock_pull_request_api ;;
-  esac
+	case "$*" in
+	*'-X POST'*) mock_not_found_response ;;
+	*) mock_pull_request_api ;;
+	esac
 }
 
 function mock_label_api() {
-  case "$*" in
-    *"/pulls/$pr_number") echo "$label_snapshot" ;;
-    *'-X POST'*) echo "POST $*" >> "$label_requests" ;;
-    *'-X DELETE'*) echo "DELETE $*" >> "$label_requests" ;;
-    *) return 1 ;;
-  esac
+	case "$*" in
+	*"/pulls/$pr_number") echo "$label_snapshot" ;;
+	*'-X POST'*) echo "POST $*" >>"$label_requests" ;;
+	*'-X DELETE'*) echo "DELETE $*" >>"$label_requests" ;;
+	*) return 1 ;;
+	esac
 }
 
 pr_number=123
@@ -50,224 +55,317 @@ files_to_ignore=''
 ignore_line_deletions='false'
 ignore_file_deletions='false'
 
-function test_should_count_changes() {
-  bashunit::mock curl mock_pull_request_api
+function test_should_decode_explicit_file_fields() {
+	local encoded_file
+	encoded_file=$(printf '%s' '{"filename":"file with spaces.txt","additions":7}' | base64)
 
-  assert_equals 174 "$(github::calculate_total_modifications "$pr_number" "${files_to_ignore[*]}" "$ignore_line_deletions" "$ignore_file_deletions")"
+	assert_equals 'file with spaces.txt' "$(jq::base64 "$encoded_file" '.filename')"
+	assert_equals 7 "$(jq::base64 "$encoded_file" '.additions')"
+}
+
+function test_should_map_input_words_without_trailing_newline() {
+	local temp_dir input_file output
+	temp_dir=$(mktemp -d /tmp/pr-size-labeler-shellcheck.XXXXXX)
+	input_file="$temp_dir/input"
+	printf 'alpha beta\ngamma' >"$input_file"
+
+	output=$(coll::map log::message <"$input_file")
+
+	rm -f "$input_file"
+	rmdir "$temp_dir"
+	assert_equals $'alpha\nbeta\ngamma' "$output"
+	assert_equals '' "$(printf '%s' '' | coll::map log::message)"
+}
+
+function test_should_find_labels_with_spaces() {
+	bashunit::mock curl mock_labels_api
+
+	local status
+	github::has_label "$pr_number" 'size/needs review'
+	status=$?
+
+	assert_equals 0 "$status"
+}
+
+function test_should_not_find_an_absent_label() {
+	bashunit::mock curl mock_labels_api
+
+	local status
+	github::has_label "$pr_number" 'size/m'
+	status=$?
+
+	assert_equals 1 "$status"
+}
+
+function test_should_count_changes() {
+	bashunit::mock curl mock_pull_request_api
+
+	assert_equals 174 "$(github::calculate_total_modifications "$pr_number" "${files_to_ignore[*]}" "$ignore_line_deletions" "$ignore_file_deletions")"
 }
 
 function test_should_count_changes_ignore_line_deletions() {
-  ignore_line_deletions='true'
+	ignore_line_deletions='true'
 
-  bashunit::mock curl mock_pull_request_api
+	bashunit::mock curl mock_pull_request_api
 
-  assert_equals 173 "$(github::calculate_total_modifications "$pr_number" "${files_to_ignore[*]}" "$ignore_line_deletions" "$ignore_file_deletions")"
+	assert_equals 173 "$(github::calculate_total_modifications "$pr_number" "${files_to_ignore[*]}" "$ignore_line_deletions" "$ignore_file_deletions")"
 }
 
 # NOTE: when `files_to_ignore` or `ignore_file_deletions` is set, we have to invoke the PR files API and iterate each file
 # one at at time. This is why the mock call is diffent in the subsequent test cases
 function test_should_count_changes_ignore_file_deletions() {
-  ignore_file_deletions='true'
+	ignore_file_deletions='true'
 
-  bashunit::mock curl mock_pull_request_files_api
+	bashunit::mock curl mock_pull_request_files_api
 
-  assert_equals 2779 "$(github::calculate_total_modifications "$pr_number" "${files_to_ignore[*]}" "$ignore_line_deletions" "$ignore_file_deletions")"
+	assert_equals 2779 "$(github::calculate_total_modifications "$pr_number" "${files_to_ignore[*]}" "$ignore_line_deletions" "$ignore_file_deletions")"
 }
 
 function test_should_ignore_files_with_glob() {
-  files_to_ignore=("*.lock" ".editorconfig")
+	files_to_ignore=("*.lock" ".editorconfig")
 
-  bashunit::mock curl mock_pull_request_files_api
+	bashunit::mock curl mock_pull_request_files_api
 
-  assert_equals 517 "$(github::calculate_total_modifications "$pr_number" "${files_to_ignore[*]}" "$ignore_line_deletions" "$ignore_file_deletions")"
+	assert_equals 517 "$(github::calculate_total_modifications "$pr_number" "${files_to_ignore[*]}" "$ignore_line_deletions" "$ignore_file_deletions")"
 }
 
 function test_should_ignore_files_with_glob_ignore_line_deletions() {
-  files_to_ignore=("*.lock" ".editorconfig")
-  ignore_line_deletions='true'
+	files_to_ignore=("*.lock" ".editorconfig")
+	ignore_line_deletions='true'
 
-  bashunit::mock curl mock_pull_request_files_api
+	bashunit::mock curl mock_pull_request_files_api
 
-  assert_equals 224 "$(github::calculate_total_modifications "$pr_number" "${files_to_ignore[*]}" "$ignore_line_deletions" "$ignore_file_deletions")"
+	assert_equals 224 "$(github::calculate_total_modifications "$pr_number" "${files_to_ignore[*]}" "$ignore_line_deletions" "$ignore_file_deletions")"
 }
 
 function test_should_ignore_files_with_glob_ignore_file_deletions() {
-  files_to_ignore=("*.lock" ".editorconfig")
-  ignore_file_deletions='true'
+	files_to_ignore=("*.lock" ".editorconfig")
+	ignore_file_deletions='true'
 
-  bashunit::mock curl mock_pull_request_files_api
+	bashunit::mock curl mock_pull_request_files_api
 
-  assert_equals 394 "$(github::calculate_total_modifications "$pr_number" "${files_to_ignore[*]}" "$ignore_line_deletions" "$ignore_file_deletions")"
+	assert_equals 394 "$(github::calculate_total_modifications "$pr_number" "${files_to_ignore[*]}" "$ignore_line_deletions" "$ignore_file_deletions")"
 }
 
 function test_should_count_changes_across_pages() {
-  ignore_file_deletions='true'
+	ignore_file_deletions='true'
 
-  # Plain function instead of `bashunit::mock`, as the response has to differ per page:
-  # a full page of 100 files with 2 changes each, then the fixture as last page
-  function curl() {
-    case "$*" in
-      *"page=1") jq -n '[range(100) | {filename: "file-\(.)", status: "modified", additions: 1, deletions: 1}]' ;;
-      *"page=2") cat ./tests/fixtures/pull_request_files_api ;;
-    esac
-  }
+	# Plain function instead of `bashunit::mock`, as the response has to differ per page:
+	# a full page of 100 files with 2 changes each, then the fixture as last page
+	function curl() {
+		case "$*" in
+		*"page=1") jq -n '[range(100) | {filename: "file-\(.)", status: "modified", additions: 1, deletions: 1}]' ;;
+		*"page=2") cat ./tests/fixtures/pull_request_files_api ;;
+		esac
+	}
 
-  assert_equals $((200 + 2779)) "$(github::calculate_total_modifications "$pr_number" "${files_to_ignore[*]}" "$ignore_line_deletions" "$ignore_file_deletions")"
-  assert_equals $((200 + 2779)) "$(github::calculate_total_modifications "$pr_number" "${files_to_ignore[*]}" "$ignore_line_deletions" "$ignore_file_deletions" 3000)"
+	assert_equals $((200 + 2779)) "$(github::calculate_total_modifications "$pr_number" "${files_to_ignore[*]}" "$ignore_line_deletions" "$ignore_file_deletions")"
+	assert_equals $((200 + 2779)) "$(github::calculate_total_modifications "$pr_number" "${files_to_ignore[*]}" "$ignore_line_deletions" "$ignore_file_deletions" 3000)"
 }
 
 function test_should_stop_fetching_when_xl_size_is_reached() {
-  ignore_file_deletions='true'
-  file_requests=$(mktemp)
+	ignore_file_deletions='true'
+	file_requests=$(mktemp)
 
-  function curl() {
-    case "$*" in
-      *"page=1") echo 1 >> "$file_requests"; jq -n '[range(100) | {filename: "file-\(.)", status: "modified", additions: 1, deletions: 1}]' ;;
-      *) echo unexpected >> "$file_requests"; return 1 ;;
-    esac
-  }
+	function curl() {
+		case "$*" in
+		*"page=1")
+			echo 1 >>"$file_requests"
+			jq -n '[range(100) | {filename: "file-\(.)", status: "modified", additions: 1, deletions: 1}]'
+			;;
+		*)
+			echo unexpected >>"$file_requests"
+			return 1
+			;;
+		esac
+	}
 
-  assert_equals 100 "$(github::calculate_total_modifications "$pr_number" '' false true 100)"
-  assert_equals 1 "$(cat "$file_requests")"
+	assert_equals 100 "$(github::calculate_total_modifications "$pr_number" '' false true 100)"
+	assert_equals 1 "$(cat "$file_requests")"
 }
 
 function test_should_stop_fetching_after_second_page_reaches_xl_size() {
-  file_requests=$(mktemp)
+	file_requests=$(mktemp)
 
-  function curl() {
-    case "$*" in
-      *"page=1") echo 1 >> "$file_requests"; jq -n '[range(100) | {filename: "first-\(.)", status: "modified", additions: 1, deletions: 0}]' ;;
-      *"page=2") echo 2 >> "$file_requests"; jq -n '[range(100) | {filename: "second-\(.)", status: "modified", additions: 1, deletions: 0}]' ;;
-      *) echo unexpected >> "$file_requests"; return 1 ;;
-    esac
-  }
+	function curl() {
+		case "$*" in
+		*"page=1")
+			echo 1 >>"$file_requests"
+			jq -n '[range(100) | {filename: "first-\(.)", status: "modified", additions: 1, deletions: 0}]'
+			;;
+		*"page=2")
+			echo 2 >>"$file_requests"
+			jq -n '[range(100) | {filename: "second-\(.)", status: "modified", additions: 1, deletions: 0}]'
+			;;
+		*)
+			echo unexpected >>"$file_requests"
+			return 1
+			;;
+		esac
+	}
 
-  assert_equals 150 "$(github::calculate_total_modifications "$pr_number" '' false true 150)"
-  assert_equals $'1\n2' "$(cat "$file_requests")"
+	assert_equals 150 "$(github::calculate_total_modifications "$pr_number" '' false true 150)"
+	assert_equals $'1\n2' "$(cat "$file_requests")"
 }
 
 function test_should_skip_file_requests_when_xl_cutoff_is_zero() {
-  function curl() {
-    return 1
-  }
+	function curl() {
+		return 1
+	}
 
-  assert_equals 0 "$(github::calculate_total_modifications "$pr_number" '' false true 0)"
+	assert_equals 0 "$(github::calculate_total_modifications "$pr_number" '' false true 0)"
 }
 
 function test_should_fetch_next_page_when_ignored_changes_do_not_reach_xl_size() {
-  file_requests=$(mktemp)
+	file_requests=$(mktemp)
 
-  function curl() {
-    case "$*" in
-      *"page=1") echo 1 >> "$file_requests"; jq -n '[range(100) | {filename: "ignored.lock", status: "modified", additions: 1, deletions: 1}]' ;;
-      *"page=2") echo 2 >> "$file_requests"; echo '[{"filename":"included.txt","status":"modified","additions":2,"deletions":0}]' ;;
-      *) echo unexpected >> "$file_requests"; return 1 ;;
-    esac
-  }
+	function curl() {
+		case "$*" in
+		*"page=1")
+			echo 1 >>"$file_requests"
+			jq -n '[range(100) | {filename: "ignored.lock", status: "modified", additions: 1, deletions: 1}]'
+			;;
+		*"page=2")
+			echo 2 >>"$file_requests"
+			echo '[{"filename":"included.txt","status":"modified","additions":2,"deletions":0}]'
+			;;
+		*)
+			echo unexpected >>"$file_requests"
+			return 1
+			;;
+		esac
+	}
 
-  assert_equals 2 "$(github::calculate_total_modifications "$pr_number" '*.lock' false false 2)"
-  assert_equals $'1\n2' "$(cat "$file_requests")"
+	assert_equals 2 "$(github::calculate_total_modifications "$pr_number" '*.lock' false false 2)"
+	assert_equals $'1\n2' "$(cat "$file_requests")"
 }
 
 function test_should_fetch_next_page_when_removed_files_are_ignored() {
-  file_requests=$(mktemp)
+	file_requests=$(mktemp)
 
-  function curl() {
-    case "$*" in
-      *"page=1") echo 1 >> "$file_requests"; jq -n '[range(100) | {filename: "removed-\(.)", status: "removed", additions: 0, deletions: 100}]' ;;
-      *"page=2") echo 2 >> "$file_requests"; echo '[{"filename":"included.txt","status":"modified","additions":2,"deletions":0}]' ;;
-      *) echo unexpected >> "$file_requests"; return 1 ;;
-    esac
-  }
+	function curl() {
+		case "$*" in
+		*"page=1")
+			echo 1 >>"$file_requests"
+			jq -n '[range(100) | {filename: "removed-\(.)", status: "removed", additions: 0, deletions: 100}]'
+			;;
+		*"page=2")
+			echo 2 >>"$file_requests"
+			echo '[{"filename":"included.txt","status":"modified","additions":2,"deletions":0}]'
+			;;
+		*)
+			echo unexpected >>"$file_requests"
+			return 1
+			;;
+		esac
+	}
 
-  assert_equals 2 "$(github::calculate_total_modifications "$pr_number" '' false true 2)"
-  assert_equals $'1\n2' "$(cat "$file_requests")"
+	assert_equals 2 "$(github::calculate_total_modifications "$pr_number" '' false true 2)"
+	assert_equals $'1\n2' "$(cat "$file_requests")"
 }
 
 function test_should_fetch_next_page_when_line_deletions_are_ignored() {
-  file_requests=$(mktemp)
+	file_requests=$(mktemp)
 
-  function curl() {
-    case "$*" in
-      *"page=1") echo 1 >> "$file_requests"; jq -n '[range(100) | {filename: "modified-\(.)", status: "modified", additions: 0, deletions: 100}]' ;;
-      *"page=2") echo 2 >> "$file_requests"; echo '[{"filename":"included.txt","status":"modified","additions":2,"deletions":100}]' ;;
-      *) echo unexpected >> "$file_requests"; return 1 ;;
-    esac
-  }
+	function curl() {
+		case "$*" in
+		*"page=1")
+			echo 1 >>"$file_requests"
+			jq -n '[range(100) | {filename: "modified-\(.)", status: "modified", additions: 0, deletions: 100}]'
+			;;
+		*"page=2")
+			echo 2 >>"$file_requests"
+			echo '[{"filename":"included.txt","status":"modified","additions":2,"deletions":100}]'
+			;;
+		*)
+			echo unexpected >>"$file_requests"
+			return 1
+			;;
+		esac
+	}
 
-  assert_equals 2 "$(github::calculate_total_modifications "$pr_number" '*.lock' true false 2)"
-  assert_equals $'1\n2' "$(cat "$file_requests")"
+	assert_equals 2 "$(github::calculate_total_modifications "$pr_number" '*.lock' true false 2)"
+	assert_equals $'1\n2' "$(cat "$file_requests")"
 }
 
 function test_should_report_permission_error_on_later_page_below_cutoff() {
-  file_requests=$(mktemp)
+	file_requests=$(mktemp)
 
-  function curl() {
-    case "$*" in
-      *"page=1") echo 1 >> "$file_requests"; jq -n '[range(100) | {filename: "modified-\(.)", status: "modified", additions: 1, deletions: 0}]' ;;
-      *"page=2") echo 2 >> "$file_requests"; mock_not_found_response ;;
-      *) echo unexpected >> "$file_requests"; return 1 ;;
-    esac
-  }
+	function curl() {
+		case "$*" in
+		*"page=1")
+			echo 1 >>"$file_requests"
+			jq -n '[range(100) | {filename: "modified-\(.)", status: "modified", additions: 1, deletions: 0}]'
+			;;
+		*"page=2")
+			echo 2 >>"$file_requests"
+			mock_not_found_response
+			;;
+		*)
+			echo unexpected >>"$file_requests"
+			return 1
+			;;
+		esac
+	}
 
-  local output status
-  output=$(github::calculate_total_modifications "$pr_number" '' false true 1000 2>&1)
-  status=$?
+	local output status
+	output=$(github::calculate_total_modifications "$pr_number" '' false true 1000 2>&1)
+	status=$?
 
-  assert_equals 1 "$status"
-  assert_contains 'pull-requests: write' "$output"
-  assert_equals $'1\n2' "$(cat "$file_requests")"
+	assert_equals 1 "$status"
+	assert_contains 'pull-requests: write' "$output"
+	assert_equals $'1\n2' "$(cat "$file_requests")"
 }
 
 function test_should_report_permission_error() {
-  ignore_file_deletions='true'
+	ignore_file_deletions='true'
 
-  bashunit::mock curl mock_not_found_response
+	bashunit::mock curl mock_not_found_response
 
-  local output status
-  output=$(github::calculate_total_modifications "$pr_number" "${files_to_ignore[*]}" "$ignore_line_deletions" "$ignore_file_deletions" 2>&1)
-  status=$?
+	local output status
+	output=$(github::calculate_total_modifications "$pr_number" "${files_to_ignore[*]}" "$ignore_line_deletions" "$ignore_file_deletions" 2>&1)
+	status=$?
 
-  assert_equals 1 "$status"
-  assert_contains 'pull-requests: write' "$output"
+	assert_equals 1 "$status"
+	assert_contains 'pull-requests: write' "$output"
 }
 
 function test_should_report_permission_error_on_label_write() {
-  bashunit::mock curl mock_label_write_denied
+	bashunit::mock curl mock_label_write_denied
 
-  local output status
-  output=$(github::add_label_to_pr "$pr_number" 'size/xs' 'size/xs' 'size/s' 'size/m' 'size/l' 'size/xl' 2>&1)
-  status=$?
+	local output status
+	output=$(github::add_label_to_pr "$pr_number" 'size/xs' 'size/xs' 'size/s' 'size/m' 'size/l' 'size/xl' 2>&1)
+	status=$?
 
-  assert_equals 1 "$status"
-  assert_contains 'pull-requests: write' "$output"
+	assert_equals 1 "$status"
+	assert_contains 'pull-requests: write' "$output"
 }
 
 function test_should_preserve_labels_added_after_reading_the_pr() {
-  label_requests=$(mktemp)
-  # The snapshot cannot include labels added by another workflow after this read.
-  label_snapshot='{"labels":[{"name":"size/old label"},{"name":"size/m"},{"name":"team/needs review"}]}'
-  old_label='size/old label'
-  bashunit::mock curl mock_label_api
+	label_requests=$(mktemp)
+	# The snapshot cannot include labels added by another workflow after this read.
+	label_snapshot='{"labels":[{"name":"size/old label"},{"name":"size/m"},{"name":"team/needs review"}]}'
+	old_label='size/old label'
+	bashunit::mock curl mock_label_api
 
-  local output
-  output=$(github::add_label_to_pr "$pr_number" 'size/"new"' 'size/xs' "$old_label" 'size/m' 'size/l' 'size/"new"')
+	local output
+	output=$(github::add_label_to_pr "$pr_number" 'size/"new"' 'size/xs' "$old_label" 'size/m' 'size/l' 'size/"new"')
 
-  assert_contains 'Removing size label: size/old label' "$output"
-  assert_contains 'Removing size label: size/m' "$output"
-  assert_equals $'POST\nDELETE\nDELETE' "$(cut -d ' ' -f 1 "$label_requests")"
-  assert_contains '{"labels":["size/\"new\""]}' "$(cat "$label_requests")"
-  assert_contains '/labels/size%2Fold%20label' "$(cat "$label_requests")"
-  assert_contains '/labels/size%2Fm' "$(cat "$label_requests")"
+	assert_contains 'Removing size label: size/old label' "$output"
+	assert_contains 'Removing size label: size/m' "$output"
+	assert_equals $'POST\nDELETE\nDELETE' "$(cut -d ' ' -f 1 "$label_requests")"
+	assert_contains '{"labels":["size/\"new\""]}' "$(cat "$label_requests")"
+	assert_contains '/labels/size%2Fold%20label' "$(cat "$label_requests")"
+	assert_contains '/labels/size%2Fm' "$(cat "$label_requests")"
 }
 
 function test_should_not_remove_the_current_size_label() {
-  label_requests=$(mktemp)
-  label_snapshot='{"labels":[{"name":"size/xl"},{"name":"team/needs review"}]}'
-  bashunit::mock curl mock_label_api
+	label_requests=$(mktemp)
+	label_snapshot='{"labels":[{"name":"size/xl"},{"name":"team/needs review"}]}'
+	bashunit::mock curl mock_label_api
 
-  github::add_label_to_pr "$pr_number" 'size/xl' 'size/xs' 'size/s' 'size/m' 'size/l' 'size/xl'
+	github::add_label_to_pr "$pr_number" 'size/xl' 'size/xs' 'size/s' 'size/m' 'size/l' 'size/xl'
 
-  assert_equals 'POST' "$(cut -d ' ' -f 1 "$label_requests")"
-  assert_contains '{"labels":["size/xl"]}' "$(cat "$label_requests")"
+	assert_equals 'POST' "$(cut -d ' ' -f 1 "$label_requests")"
+	assert_contains '{"labels":["size/xl"]}' "$(cat "$label_requests")"
 }

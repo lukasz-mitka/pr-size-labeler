@@ -1,21 +1,23 @@
 #!/usr/bin/env bash
 
 echoerr() {
-  echo "$@" 1>&2
+	echo "$@" 1>&2
 }
 
 log::message() {
-  echo "$@"
+	echo "$@"
 }
 
 coll::map() {
-  local -r fn="$1"
+	local -r fn="$1"
+	local input item
+	input=$(cat)
 
-  for x in $(cat); do
-    "$fn" "$x"
-  done
+	for item in $input; do
+		"$fn" "$item"
+	done
 }
 
 jq::base64() {
-  echo "$file" | base64 -d | jq -r "$1"
+	echo "$1" | base64 -d | jq -r "$2"
 }

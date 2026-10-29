@@ -23,6 +23,12 @@ To maintain a consistent and readable codebase, we kindly ask you to follow the 
 
 While we don't aim to be overly strict, we appreciate your willingness to adhere to the existing patterns and maintain a minimum level of code quality.
 
+Run the linter from the repository root:
+
+```bash
+pre-commit run --all-files
+```
+
 ## Testing
 
 Tests are written using [bashunit](https://bashunit.com/).
