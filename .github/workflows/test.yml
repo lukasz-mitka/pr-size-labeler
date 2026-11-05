@@ -10,13 +10,25 @@ permissions:
 name: Tests
 jobs:
   tests:
-    runs-on: ubuntu-slim
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+
       - name: Install dependencies
-        run: ./install-dev-dependencies.sh
+        run: npm ci
 
       - name: Tests
-        run: ./lib/bashunit
+        run: npm test
+
+      - name: Verify committed bundle
+        run: git diff --exit-code -- dist

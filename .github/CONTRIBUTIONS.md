@@ -18,34 +18,54 @@ We adhere to Semantic Versioning (SemVer) when introducing new fixes and feature
 To maintain a consistent and readable codebase, we kindly ask you to follow the existing code patterns and conventions. This includes:
 
 - Writing short functions with clear purpose and naming.
-- Separating functions by modules or namespaces (e.g., `github`, `ensure`).
+- Keeping plain JavaScript modules focused: `inputs.js` parses configuration, `github.js` uses Octokit, `labeler.js` controls labeling, and `main.js` is the action entrypoint.
 - Following the established coding style and best practices.
 
 While we don't aim to be overly strict, we appreciate your willingness to adhere to the existing patterns and maintain a minimum level of code quality.
 
-Run the linter from the repository root:
+Use Node.js 24 or later. Install development dependencies from the lockfile:
 
 ```bash
-pre-commit run --all-files
+npm ci
 ```
+
+Run static analysis and formatting checks from the repository root:
+
+```bash
+npm run lint
+npm run format:check
+pre-commit run --all-files --show-diff-on-failure
+```
+
+Run `npm run format` to apply formatting. The pre-commit hooks use the locally installed ESLint and Prettier, so run `npm ci` first.
 
 ## Testing
 
-Tests are written using [bashunit](https://bashunit.com/).
+Tests use Node's built-in test runner and strict assertions. Unit tests mock Octokit's HTTP transport. Integration tests run the bundled action against a local HTTP server from external temporary directories. Do not call the real GitHub API or use real tokens in tests.
 
-To install the vendor dependencies, run:
-
-```bash
-./install-dev-dependencies.sh
-```
-
-To run all tests, use the following command:
+To build the bundle and run all tests:
 
 ```bash
-./lib/bashunit tests
+npm test
 ```
 
-Please make sure to write appropriate tests for any new features or bug fixes you introduce. Tests should be placed in the `tests` directory and follow the naming convention of `test_*.sh`.
+For a focused test after building:
+
+```bash
+node --test tests/labeler.test.js
+```
+
+Write tests for new behavior and edge cases under `tests/`, using `*.test.js` filenames. Preserve coverage for exclusive cutoffs, file-ignore patterns, paginated counting and early exit, label preservation, XL comments, and API errors.
+
+## Distribution
+
+The action runs the committed `dist/index.cjs` bundle, not the source directly. After changing source or dependencies, rebuild it:
+
+```bash
+npm run build
+```
+
+Include the generated `dist/` files and `package-lock.json` with your changes. Do not edit the bundle or lockfile by hand. CI runs tests on Linux, macOS, and Windows with Node.js 24, and rejects stale bundles. Keep the privileged `pull_request_target` self-test on the trusted base branch; never check out PR code in that job.
 
 ## Contribution Process
 

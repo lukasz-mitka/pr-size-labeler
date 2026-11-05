@@ -14,7 +14,7 @@ changelog:
         - testing
     - title: 🛠️ Changes
       labels:
-        - "*"
+        - '*'
       exclude:
         labels:
           - dependencies
