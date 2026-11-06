@@ -1,95 +1,133 @@
 # Pull Request Size Labeler
-Add size labels to your pull requests based on the number of changes.
 
-## 🚀 Usage
+Add size labels to pull requests based on added and deleted lines. This TypeScript action runs on Node.js 24. It uses `@actions/core` for inputs, token masking, logging, and failures, and `@actions/github` for event context and Octokit API calls. It works on Linux, macOS, and Windows runners without Bash, curl, jq, a checkout, or an npm install in your workflow.
 
-Create a file named `labeler.yml` inside the `.github/workflows` directory and paste the following configuration.
+## Usage
 
-> [!NOTE]
-> Take into account that PR Size Labeler considers any line addition, deletion, or modification as a change by default, but you can configure it with optional arguments such as `files_to_ignore`, `ignore_file_deletions`, or even `ignore_line_deletions`.
+Create `.github/workflows/labeler.yml`:
 
-```yml
-name: labeler
+```yaml
+name: Label PR size
 
-on: [pull_request]
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  pull-requests: write
 
 jobs:
   labeler:
-    permissions:
-      pull-requests: write
     runs-on: ubuntu-latest
-    name: Label the PR size
     steps:
       - uses: lukasz-mitka/pr-size-labeler@v1
-        with:
-          xs_label: 'size/xs'
-          xs_max_size: '10'
-          s_label: 'size/s'
-          s_max_size: '100'
-          m_label: 'size/m'
-          m_max_size: '500'
-          l_label: 'size/l'
-          l_max_size: '1000'
-          xl_label: 'size/xl'
-          fail_if_xl: 'false'
-          message_if_xl: >
-            This PR exceeds the recommended size of 1000 lines.
-            Please make sure you are NOT addressing multiple issues with one PR.
-            Note this PR might be rejected due to its size.
-          github_api_url: 'https://api.github.com'
-          files_to_ignore: ''
 ```
 
-The job needs `pull-requests: write` to read the PR and update its labels or post an XL comment.
+The token is supplied automatically. The job needs `pull-requests: write` to read the PR, update labels, and post comments. `pull_request_target` allows labeling PRs from forks with a writable token. Do not check out or execute PR code in this privileged workflow. For same-repository PRs, `pull_request` can also be used.
 
-> [!TIP]
-> Replace `on: [pull_request]` with `on: [pull_request_target]` when using forks and when you don't want any PR to be able to execute code ([more info: GitHub docs](https://docs.github.com/en/actions/reference/events-that-trigger-workflows#pull_request_target)).
+Self-hosted runners must support Node.js 24 actions (runner v2.327.1 or later).
 
-## 🎛️ Arguments
+### Configuration
 
-| Name                    | Required | Default Value        | Description                                                                                                               |
-|-------------------------|----------|----------------------|---------------------------------------------------------------------------------------------------------------------------|
-| `GITHUB_TOKEN`          | No       | Automatically supplied| GitHub token needed to interact with the repository.                                                                     |
-| `xs_label`              | No       | 'size/xs'            | Label for very small-sized PRs.                                                                                           |
-| `xs_max_size`           | No       | '10'                 | Maximum number of changes allowed for XS-sized PRs.                                                                       |
-| `s_label`               | No       | 'size/s'             | Label for small-sized PRs.                                                                                                |
-| `s_max_size`            | No       | '100'                | Maximum number of changes allowed for S-sized PRs.                                                                        |
-| `m_label`               | No       | 'size/m'             | Label for medium-sized PRs.                                                                                               |
-| `m_max_size`            | No       | '500'                | Maximum number of changes allowed for M-sized PRs.                                                                        |
-| `l_label`               | No       | 'size/l'             | Label for large-sized PRs.                                                                                                |
-| `l_max_size`            | No       | '1000'               | Maximum number of changes allowed for L-sized PRs.                                                                        |
-| `xl_label`              | No       | 'size/xl'            | Label for extra-large-sized PRs. A PR will be labeled as 'xl' if it exceeds the amount of changes defined in `l_max_size` |
-| `fail_if_xl`            | No       | 'false'              | Whether to fail the GitHub workflow if the PR size is 'XL' (blocks the merge).                                            |
-| `message_if_xl`         | No       | Custom message       | Message to display when a PR exceeds the 'XL' size limit.                                                                 |
-| `github_api_url`        | No       | 'https://api.github.com' | URL for the GitHub API, can be changed for GitHub Enterprise Servers.                                                 |
-| `files_to_ignore`       | No       | ''                   | Whitespace or newline separated Bash glob patterns matched against full repository-relative file paths.                  |
-| `ignore_line_deletions` | No       | 'false'              | Whether to ignore lines which are deleted when calculating the PR size. If set to 'true', deleted lines will be ignored.  |
-| `ignore_file_deletions` | No       | 'false'              | Whether to ignore completely deleted files when calculating the PR size. If set to 'true', deleted files will be ignored. Distinct from `ignore_line_deletions` in that it only ignores files which are deleted completely. If `ignore_line_deletions` is used then using `ignore_file_deletions` is redundant.            |
+All inputs are optional, and their names and defaults are unchanged from the Bash action:
 
-### Example for `files_to_ignore`
-
-Patterns match the full path of each changed file relative to the repository root, not just its filename. For example, `package-lock.json` matches a file at the root, but not `apps/web/package-lock.json`. Add `*/package-lock.json` to match copies in subdirectories. Patterns use Bash glob syntax, not regular expressions.
-
-The shell may expand a wildcard against files in the workspace before the action compares paths. If you need to ignore a specific file reliably, list its full path explicitly, such as `apps/web/package-lock.json`.
-
-```yml
-files_to_ignore: 'package-lock.json */package-lock.json'
+```yaml
+- uses: lukasz-mitka/pr-size-labeler@v1
+  with:
+    xs_label: 'size/xs'
+    xs_max_size: '10'
+    s_label: 'size/s'
+    s_max_size: '100'
+    m_label: 'size/m'
+    m_max_size: '500'
+    l_label: 'size/l'
+    l_max_size: '1000'
+    xl_label: 'size/xl'
+    fail_if_xl: 'false'
+    message_if_xl: >
+      This PR exceeds the recommended size of 1000 lines.
+      Please make sure you are NOT addressing multiple issues with one PR.
+      Note this PR might be rejected due to its size.
+    files_to_ignore: |
+      package-lock.json
+      */package-lock.json
+      *.lock
+      docs/*
+    ignore_line_deletions: 'false'
+    ignore_file_deletions: 'false'
 ```
 
-The same patterns can be listed on separate lines. `*.lock` matches files ending in `.lock`, and `docs/*` matches files under `docs/`:
+## Inputs
 
-```yml
-files_to_ignore: |
-  "package-lock.json"
-  "*/package-lock.json"
-  "*.lock"
-  "docs/*"
+| Name                    | Default                 | Description                                                                                                                    |
+| ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `GITHUB_TOKEN`          | `${{ github.token }}`   | Token for GitHub API calls.                                                                                                    |
+| `xs_label`              | `size/xs`               | Extra-small PR label.                                                                                                          |
+| `xs_max_size`           | `10`                    | Exclusive upper bound for XS.                                                                                                  |
+| `s_label`               | `size/s`                | Small PR label.                                                                                                                |
+| `s_max_size`            | `100`                   | Exclusive upper bound for S.                                                                                                   |
+| `m_label`               | `size/m`                | Medium PR label.                                                                                                               |
+| `m_max_size`            | `500`                   | Exclusive upper bound for M.                                                                                                   |
+| `l_label`               | `size/l`                | Large PR label.                                                                                                                |
+| `l_max_size`            | `1000`                  | Exclusive upper bound for L.                                                                                                   |
+| `xl_label`              | `size/xl`               | Label when no smaller category matches.                                                                                        |
+| `fail_if_xl`            | `false`                 | Fail the step after labeling an XL PR. A required status check can then block merging.                                         |
+| `message_if_xl`         | Message shown above     | Comment when a PR gains the XL label. Set to `''` to disable.                                                                  |
+| `github_api_url`        | `${{ github.api_url }}` | GitHub API base URL, including `/api/v3` for GitHub Enterprise Server.                                                         |
+| `files_to_ignore`       | `''`                    | Whitespace-separated glob patterns matched against full repository-relative paths.                                             |
+| `ignore_line_deletions` | `false`                 | Count only added lines.                                                                                                        |
+| `ignore_file_deletions` | `false`                 | Exclude completely removed files, but still count deletions in modified files. Redundant when `ignore_line_deletions` is true. |
+
+Thresholds must be non-negative integers; labels must not be empty. Boolean inputs follow the Actions SDK's YAML 1.2 rules: `true`, `True`, `TRUE`, `false`, `False`, or `FALSE`. Inputs are validated before any API writes. Input defaults come from `action.yml` and are supplied by the runner.
+
+## Sizing And Labels
+
+By default, size is additions plus deletions. A replaced line usually counts twice: once as a deletion and once as an addition. The exclusive cutoffs produce these ranges:
+
+| Label     | Changed lines |
+| --------- | ------------- |
+| `size/xs` | 0-9           |
+| `size/s`  | 10-99         |
+| `size/m`  | 100-499       |
+| `size/l`  | 500-999       |
+| `size/xl` | 1000 or more  |
+
+The action adds the selected label before removing other configured size labels. It never replaces the entire label list, so unrelated labels, including those added concurrently by other workflows, are preserved.
+
+An XL comment is posted only if the PR does not already have the configured XL label. It is not repeated on subsequent XL runs, but is posted again if the PR shrinks and later returns to XL. `fail_if_xl` fails every XL run, after label and comment updates.
+
+Without file filtering, the action reads aggregate PR statistics. When `files_to_ignore` or `ignore_file_deletions` is set, it fetches changed files in pages of 100. Counting stops as soon as the largest configured cutoff is reached, since further changes cannot affect the label. The log then reports a lower bound rather than an exact total. GitHub returns at most 3,000 changed files; if all 3,000 are scanned without reaching a cutoff or a short final page, the action fails instead of assigning a potentially incorrect size.
+
+### File Ignore Patterns
+
+Patterns use [picomatch](https://github.com/micromatch/picomatch) with Bash-style stars and dotfile matching. They are case-sensitive and match the full path, not just the filename. A `*` can span directory separators:
+
+- `package-lock.json` matches only that root file.
+- `*/package-lock.json` matches copies in subdirectories.
+- `*.lock` matches lockfiles at any depth, including dotfiles.
+- `docs/*` matches all paths under `docs/`, including nested files.
+
+Separate patterns with spaces, tabs, or newlines. Do not put quotes around individual patterns in a YAML block scalar. Shell expansion is never performed, so patterns behave the same regardless of files in the caller's workspace. Brace expansion, extended globs, and leading `!` negation are disabled. Paths containing spaces can be matched using wildcards, but cannot be listed literally because whitespace separates patterns.
+
+## Development
+
+Use Node.js 24 or later and npm:
+
+```bash
+npm ci
+npm run typecheck
+npm test
+npm run lint
+npm run format:check
+pre-commit run --all-files --show-diff-on-failure
 ```
 
-## Contributing
+`npm run typecheck` checks the source and tests with strict TypeScript settings without emitting files. `npm test` bundles the TypeScript entrypoint with [@vercel/ncc](https://github.com/vercel/ncc) and runs the TypeScript tests using Node 24's built-in type stripping and test runner. Tests mock GitHub calls, and end-to-end tests execute the bundle against a local API server from temporary directories outside the checkout. No real credentials or network access to GitHub are needed.
 
-If you would like to help improve the project, please read the [contribution guidelines](.github/CONTRIBUTIONS.md).
+After changing source or dependencies, run `npm run build` and include the generated `dist/` files alongside the source and `package-lock.json`. The build runs ncc directly to compile `src/main.ts` into the self-contained ESM entrypoint `dist/index.js`, including the Actions SDK and picomatch. Include the emitted `dist/package.json` and any other assets. Consumers do not install dependencies or need a TypeScript runtime. CI type-checks and tests Node.js 24 on Linux, macOS, and Windows, runs TypeScript-aware ESLint and Prettier through pre-commit, and verifies that the committed bundle matches the source.
 
-## ⚖️ License
+See the [contribution guidelines](.github/CONTRIBUTIONS.md) for more details.
+
+## License
 
 [MIT](LICENSE)

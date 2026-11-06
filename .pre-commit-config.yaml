@@ -3,12 +3,15 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
+        exclude: ^dist/index\.js$
       - id: end-of-file-fixer
+        exclude: ^dist/index\.js$
       - id: check-yaml
       - id: check-json
       - id: check-toml
       - id: check-xml
       - id: check-added-large-files
+        exclude: ^dist/index\.js$
         args:
           - --enforce-all
       - id: check-merge-conflict
@@ -20,13 +23,23 @@ repos:
       - id: detect-private-key
       - id: no-commit-to-branch
 
-  - repo: https://github.com/koalaman/shellcheck-precommit
-    rev: v0.11.0
+  - repo: local
     hooks:
-    - id: shellcheck
-      args: [--external-sources]
-
-  - repo: https://github.com/scop/pre-commit-shfmt
-    rev: v3.14.1-1
-    hooks:
-      - id: shfmt
+      - id: typecheck
+        name: TypeScript
+        entry: npm run typecheck
+        language: system
+        types: [ts]
+        pass_filenames: false
+      - id: eslint
+        name: ESLint
+        entry: npm run lint
+        language: system
+        types_or: [javascript, ts]
+        pass_filenames: false
+      - id: prettier
+        name: Prettier
+        entry: npm run format:check
+        language: system
+        types: [text]
+        pass_filenames: false

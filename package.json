@@ -1,0 +1,42 @@
+{
+  "name": "pr-size-labeler",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Label pull requests based on the number of changed lines",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "ncc build src/main.ts --out dist --target es2023 --transpile-only",
+    "typecheck": "tsc --noEmit",
+    "pretest": "npm run build",
+    "test": "node --test tests/*.test.ts",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "overrides": {
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^11.0.1"
+    }
+  },
+  "dependencies": {
+    "@actions/core": "^3.0.1",
+    "@actions/github": "^9.1.1",
+    "picomatch": "^4.0.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@types/node": "^24.19.2",
+    "@types/picomatch": "^4.0.3",
+    "@vercel/ncc": "^0.45.0",
+    "eslint": "^9.39.5",
+    "globals": "^17.14.0",
+    "prettier": "^3.9.10",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.1",
+    "yaml": "^2.9.1"
+  }
+}

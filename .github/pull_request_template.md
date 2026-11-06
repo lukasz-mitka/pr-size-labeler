@@ -7,13 +7,17 @@
 - [ ] Documentation Update
 
 ## Description
+
 _A brief description of the work covered in this change._
 
 ## Notes to Reviewer
+
 _If there is a particular part of the code that you need the reviewer to examine closely (e.g. some logic you are not sure about), please specify here._
 
 ## How to test
+
 _Please replace this line with instructions on how to test your changes. Use screenshots or recordings if necessary._
 
 ## Related Issues
+
 _Please link any related issues here._
