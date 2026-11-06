@@ -70,7 +70,7 @@ inputs:
     default: 'false'
 runs:
   using: 'node24'
-  main: 'dist/index.cjs'
+  main: 'dist/index.js'
 branding:
   icon: 'tag'
-  color: 'green'
+  color: 'blue'

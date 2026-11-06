@@ -1,6 +1,6 @@
 # Pull Request Size Labeler
 
-Add size labels to pull requests based on added and deleted lines. This JavaScript action runs on Node.js 24 and uses Octokit to interact with GitHub. It works on Linux, macOS, and Windows runners without Bash, curl, jq, a checkout, or an npm install in your workflow.
+Add size labels to pull requests based on added and deleted lines. This TypeScript action runs on Node.js 24. It uses `@actions/core` for inputs, token masking, logging, and failures, and `@actions/github` for event context and Octokit API calls. It works on Linux, macOS, and Windows runners without Bash, curl, jq, a checkout, or an npm install in your workflow.
 
 ## Usage
 
@@ -78,7 +78,7 @@ All inputs are optional, and their names and defaults are unchanged from the Bas
 | `ignore_line_deletions` | `false`                 | Count only added lines.                                                                                                        |
 | `ignore_file_deletions` | `false`                 | Exclude completely removed files, but still count deletions in modified files. Redundant when `ignore_line_deletions` is true. |
 
-Thresholds must be non-negative integers; labels must not be empty. Boolean inputs accept `true` or `false`. Inputs are validated before any API writes.
+Thresholds must be non-negative integers; labels must not be empty. Boolean inputs follow the Actions SDK's YAML 1.2 rules: `true`, `True`, `TRUE`, `false`, `False`, or `FALSE`. Inputs are validated before any API writes. Input defaults come from `action.yml` and are supplied by the runner.
 
 ## Sizing And Labels
 
@@ -115,15 +115,16 @@ Use Node.js 24 or later and npm:
 
 ```bash
 npm ci
+npm run typecheck
 npm test
 npm run lint
 npm run format:check
 pre-commit run --all-files --show-diff-on-failure
 ```
 
-`npm test` builds the action and runs Node's built-in test runner. Tests mock GitHub calls, and end-to-end tests execute the bundle against a local API server from temporary directories outside the checkout. No real credentials or network access to GitHub are needed.
+`npm run typecheck` checks the source and tests with strict TypeScript settings without emitting files. `npm test` bundles the TypeScript entrypoint with [@vercel/ncc](https://github.com/vercel/ncc) and runs the TypeScript tests using Node 24's built-in type stripping and test runner. Tests mock GitHub calls, and end-to-end tests execute the bundle against a local API server from temporary directories outside the checkout. No real credentials or network access to GitHub are needed.
 
-After changing source or dependencies, run `npm run build` and include the generated `dist/` files alongside the source and `package-lock.json`. The bundle includes Octokit and picomatch, so action consumers do not install dependencies. CI tests Node.js 24 on Linux, macOS, and Windows, runs ESLint and Prettier through pre-commit, and verifies that the committed bundle matches the source.
+After changing source or dependencies, run `npm run build` and include the generated `dist/` files alongside the source and `package-lock.json`. The build runs ncc directly to compile `src/main.ts` into the self-contained ESM entrypoint `dist/index.js`, including the Actions SDK and picomatch. Include the emitted `dist/package.json` and any other assets. Consumers do not install dependencies or need a TypeScript runtime. CI type-checks and tests Node.js 24 on Linux, macOS, and Windows, runs TypeScript-aware ESLint and Prettier through pre-commit, and verifies that the committed bundle matches the source.
 
 See the [contribution guidelines](.github/CONTRIBUTIONS.md) for more details.
 

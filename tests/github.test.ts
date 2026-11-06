@@ -1,40 +1,46 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
-import { GitHub } from '../src/github.js';
+import { GitHub } from '../src/github.ts';
+import type { ChangeOptions } from '../src/types.ts';
 
-const pull = JSON.parse(
+const pull: unknown = JSON.parse(
   await readFile(new URL('./fixtures/pull_request_api', import.meta.url), 'utf8'),
 );
-const files = JSON.parse(
+const files: unknown = JSON.parse(
   await readFile(new URL('./fixtures/pull_request_files_api', import.meta.url), 'utf8'),
 );
-const options = { filesToIgnore: [], ignoreLineDeletions: false, ignoreFileDeletions: false };
+const options: ChangeOptions = {
+  filesToIgnore: [],
+  ignoreLineDeletions: false,
+  ignoreFileDeletions: false,
+};
 
-function client(handler) {
+function client(handler: (url: string, init: RequestInit) => Response | Promise<Response>): GitHub {
   return new GitHub(
     {
       token: 'test-token',
       apiUrl: 'https://example.test/api/v3/',
-      repository: 'owner/repo',
+      repository: { owner: 'owner', repo: 'repo' },
       number: 123,
     },
-    handler,
+    async (url, init) => handler(String(url), init ?? {}),
   );
 }
 
-function pageFiles(filename, additions = 1, deletions = 1, status = 'modified') {
+function pageFiles(filename: string, additions = 1, deletions = 1, status = 'modified') {
   return Array.from({ length: 100 }, () => ({ filename, additions, deletions, status }));
 }
 
-for (const [overrides, expected] of [
+const fixtureCases: [Partial<ChangeOptions>, number][] = [
   [{}, 174],
   [{ ignoreLineDeletions: true }, 173],
   [{ ignoreFileDeletions: true }, 2779],
   [{ filesToIgnore: ['*.lock', '.editorconfig'] }, 517],
   [{ filesToIgnore: ['*.lock', '.editorconfig'], ignoreLineDeletions: true }, 224],
   [{ filesToIgnore: ['*.lock', '.editorconfig'], ignoreFileDeletions: true }, 394],
-]) {
+];
+for (const [overrides, expected] of fixtureCases) {
   test(`counts fixture changes: ${JSON.stringify(overrides)}`, async () => {
     const github = client(async (url) => Response.json(url.includes('/files?') ? files : pull));
     assert.equal(await github.calculateTotalModifications({ ...options, ...overrides }), expected);
@@ -42,7 +48,7 @@ for (const [overrides, expected] of [
 }
 
 test('paginates full pages and stops at a short final page', async () => {
-  const requests = [];
+  const requests: string[] = [];
   const github = client(async (url) => {
     requests.push(url);
     return Response.json(url.endsWith('page=1') ? pageFiles('file.txt') : files);
@@ -52,7 +58,7 @@ test('paginates full pages and stops at a short final page', async () => {
     2979,
   );
   assert.equal(requests.length, 2);
-  assert.ok(requests[1].endsWith('per_page=100&page=2'));
+  assert.ok(requests[1]?.endsWith('per_page=100&page=2'));
 });
 
 test('fetches an empty final page when the last populated page has 100 files', async () => {
@@ -88,11 +94,12 @@ test('does not request files when the largest cutoff is zero', async () => {
   );
 });
 
-for (const [settings, firstPage] of [
+const ignoredCases: [Partial<ChangeOptions>, ReturnType<typeof pageFiles>][] = [
   [{ filesToIgnore: ['*.lock'] }, pageFiles('nested/file.lock', 100, 100)],
   [{ ignoreFileDeletions: true }, pageFiles('deleted.txt', 0, 100, 'removed')],
   [{ filesToIgnore: ['*.lock'], ignoreLineDeletions: true }, pageFiles('file.txt', 0, 100)],
-]) {
+];
+for (const [settings, firstPage] of ignoredCases) {
   test(`continues past ignored changes: ${JSON.stringify(settings)}`, async () => {
     let requests = 0;
     const github = client(async () =>
@@ -158,7 +165,7 @@ test('reads label names including spaces', async () => {
 });
 
 test('sends authenticated JSON requests and URL-encodes labels on GitHub Enterprise', async () => {
-  const requests = [];
+  const requests: (RequestInit & { url: string })[] = [];
   const github = client(async (url, init) => {
     requests.push({ url, ...init });
     return new Response(null, { status: 204 });
@@ -166,19 +173,25 @@ test('sends authenticated JSON requests and URL-encodes labels on GitHub Enterpr
   await github.addLabel('size/"new"');
   await github.removeLabel('size/old label');
   await github.comment('Please "split" this PR\nThanks! \\');
-  assert.equal(requests[0].url, 'https://example.test/api/v3/repos/owner/repo/issues/123/labels');
-  assert.equal(requests[0].headers.authorization, 'token test-token');
-  assert.equal(requests[0].headers['content-type'], 'application/json; charset=utf-8');
-  assert.deepEqual(JSON.parse(requests[0].body), { labels: ['size/"new"'] });
-  assert.equal(requests[1].method, 'DELETE');
-  assert.ok(requests[1].url.endsWith('/labels/size%2Fold%20label'));
-  assert.deepEqual(JSON.parse(requests[2].body), { body: 'Please "split" this PR\nThanks! \\' });
+  const [add, remove, comment] = requests;
+  assert.ok(add && remove && comment);
+  assert.equal(add.url, 'https://example.test/api/v3/repos/owner/repo/issues/123/labels');
+  const headers = new Headers(add.headers);
+  assert.equal(headers.get('authorization'), 'token test-token');
+  assert.equal(headers.get('content-type'), 'application/json; charset=utf-8');
+  assert.deepEqual(JSON.parse(String(add.body)), { labels: ['size/"new"'] });
+  assert.equal(remove.method, 'DELETE');
+  assert.ok(remove.url.endsWith('/labels/size%2Fold%20label'));
+  assert.deepEqual(JSON.parse(String(comment.body)), {
+    body: 'Please "split" this PR\nThanks! \\',
+  });
 });
 
 for (const status of [401, 403, 404, 500]) {
   test(`rejects HTTP ${status} errors`, async () => {
     const github = client(async () => new Response(null, { status }));
-    await assert.rejects(github.addLabel('size/s'), (error) => {
+    await assert.rejects(github.addLabel('size/s'), (error: unknown) => {
+      assert.ok(error instanceof Error);
       assert.match(error.message, new RegExp(`HTTP ${status}`));
       if ([401, 403].includes(status)) assert.match(error.message, /pull-requests: write/);
       assert.ok(!error.message.includes('test-token'));

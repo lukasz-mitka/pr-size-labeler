@@ -27,8 +27,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Type check
+        run: npm run typecheck
+
       - name: Tests
         run: npm test
+
+      - name: Verify runtime bundle is tracked
+        run: git ls-files --error-unmatch dist/index.js dist/package.json
 
       - name: Verify committed bundle
         run: git diff --exit-code -- dist

@@ -145,6 +145,9 @@ out
 .nuxt
 dist
 
+# GitHub Actions needs the committed runtime bundle.
+!/dist/
+
 # Gatsby files
 .cache/
 # Comment in the public line in if your project uses Gatsby and not Next.js

@@ -1,8 +1,14 @@
-export function labelFor(total, sizes) {
-  return sizes.find(({ max }) => total < max).label;
+import type { GitHubClient, LabelingOptions, Sizes } from './types.ts';
+
+export function labelFor(total: number, sizes: Sizes): string {
+  return (sizes.find(({ max }) => total < max) ?? sizes[4]).label;
 }
 
-export async function labelPullRequest(github, options, log = console.log) {
+export async function labelPullRequest(
+  github: GitHubClient,
+  options: LabelingOptions,
+  log: (message: string) => void = console.log,
+): Promise<void> {
   const { sizes, filesToIgnore, ignoreFileDeletions, messageIfXl, failIfXl } = options;
   const maxModifications = Math.max(...sizes.slice(0, -1).map(({ max }) => max));
   const total = await github.calculateTotalModifications(options, maxModifications);
@@ -16,7 +22,7 @@ export async function labelPullRequest(github, options, log = console.log) {
   log(`Ignoring files (if present): ${filesToIgnore.join(' ')}`);
 
   const label = labelFor(total, sizes);
-  const xlLabel = sizes.at(-1).label;
+  const xlLabel = sizes[4].label;
   const labels = await github.getLabels();
   const shouldComment = label === xlLabel && messageIfXl && !labels.includes(label);
 

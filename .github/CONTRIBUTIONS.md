@@ -18,7 +18,8 @@ We adhere to Semantic Versioning (SemVer) when introducing new fixes and feature
 To maintain a consistent and readable codebase, we kindly ask you to follow the existing code patterns and conventions. This includes:
 
 - Writing short functions with clear purpose and naming.
-- Keeping plain JavaScript modules focused: `inputs.js` parses configuration, `github.js` uses Octokit, `labeler.js` controls labeling, and `main.js` is the action entrypoint.
+- Keeping TypeScript modules focused: `inputs.ts` reads Actions SDK inputs and context, `github.ts` uses the SDK's Octokit client, `labeler.ts` controls labeling, `types.ts` defines shared contracts, and `main.ts` is the action entrypoint.
+- Using `@actions/core` for runner integration and `@actions/github` for context and API calls instead of implementing their behavior manually.
 - Following the established coding style and best practices.
 
 While we don't aim to be overly strict, we appreciate your willingness to adhere to the existing patterns and maintain a minimum level of code quality.
@@ -32,16 +33,17 @@ npm ci
 Run static analysis and formatting checks from the repository root:
 
 ```bash
+npm run typecheck
 npm run lint
 npm run format:check
 pre-commit run --all-files --show-diff-on-failure
 ```
 
-Run `npm run format` to apply formatting. The pre-commit hooks use the locally installed ESLint and Prettier, so run `npm ci` first.
+Run `npm run format` to apply formatting. The pre-commit hooks use the locally installed TypeScript, ESLint, and Prettier, so run `npm ci` first. The scoped minimatch override keeps the TypeScript linter's glob dependency on a patched release until its upstream dependency range is updated.
 
 ## Testing
 
-Tests use Node's built-in test runner and strict assertions. Unit tests mock Octokit's HTTP transport. Integration tests run the bundled action against a local HTTP server from external temporary directories. Do not call the real GitHub API or use real tokens in tests.
+Tests are TypeScript files run directly by Node 24's built-in type stripping and test runner with strict assertions. Type checking is separate because native type stripping and ncc's transpile-only build do not check types. Unit tests mock Octokit's HTTP transport and exercise real Actions input readers with defaults parsed from `action.yml`. Integration tests run the bundled action against a local HTTP server from external temporary directories. Do not call the real GitHub API or use real tokens in tests.
 
 To build the bundle and run all tests:
 
@@ -52,20 +54,20 @@ npm test
 For a focused test after building:
 
 ```bash
-node --test tests/labeler.test.js
+node --test tests/labeler.test.ts
 ```
 
-Write tests for new behavior and edge cases under `tests/`, using `*.test.js` filenames. Preserve coverage for exclusive cutoffs, file-ignore patterns, paginated counting and early exit, label preservation, XL comments, and API errors.
+Write tests for new behavior and edge cases under `tests/`, using `*.test.ts` filenames. Both source and tests must pass strict checking with `npm run typecheck`. Preserve coverage for exclusive cutoffs, file-ignore patterns, paginated counting and early exit, label preservation, XL comments, SDK integration, and API errors.
 
 ## Distribution
 
-The action runs the committed `dist/index.cjs` bundle, not the source directly. After changing source or dependencies, rebuild it:
+The action runs the committed `dist/index.js` ESM bundle compiled from `src/main.ts` with [@vercel/ncc](https://github.com/vercel/ncc), not the TypeScript source directly. The npm build script runs ncc's CLI without a custom wrapper. `src/tsconfig.json` preserves ESM imports for ncc to bundle the Actions SDK while the root config remains responsible for strict, no-emit type checking. After changing source or dependencies, rebuild it:
 
 ```bash
 npm run build
 ```
 
-Include the generated `dist/` files and `package-lock.json` with your changes. Do not edit the bundle or lockfile by hand. CI runs tests on Linux, macOS, and Windows with Node.js 24, and rejects stale bundles. Keep the privileged `pull_request_target` self-test on the trusted base branch; never check out PR code in that job.
+Include the generated `dist/` files, including `dist/package.json`, and `package-lock.json` with your changes. Do not edit the bundle or lockfile by hand. The generated bundle is exempt from pre-commit's source-file size limit and whitespace formatting so its vendored dependency code remains identical to ncc's output; CI checks that it is tracked and reproducible instead. CI type-checks and tests on Linux, macOS, and Windows with Node.js 24, and rejects stale bundles. Keep the privileged `pull_request_target` self-test on the trusted base branch; never check out PR code in that job.
 
 ## Contribution Process
 

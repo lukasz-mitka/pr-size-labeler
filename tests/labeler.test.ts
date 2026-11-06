@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { labelFor, labelPullRequest } from '../src/labeler.js';
+import { labelFor, labelPullRequest } from '../src/labeler.ts';
+import type { ChangeOptions, LabelingOptions } from '../src/types.ts';
 
-function options(overrides = {}) {
+function options(overrides: Partial<LabelingOptions> = {}): LabelingOptions {
   return {
     sizes: [
       { label: 'size/xs', max: 10 },
@@ -20,26 +21,26 @@ function options(overrides = {}) {
   };
 }
 
-function fakeGithub(total = 1000, labels = []) {
-  const calls = [];
+function fakeGithub(total = 1000, labels: string[] = []) {
+  const calls: [string, (string | number)?][] = [];
   return {
     calls,
-    async calculateTotalModifications(settings, cutoff) {
+    async calculateTotalModifications(_settings: ChangeOptions, cutoff: number): Promise<number> {
       calls.push(['count', cutoff]);
       return total;
     },
-    async getLabels() {
+    async getLabels(): Promise<string[]> {
       return [...labels];
     },
-    async addLabel(label) {
+    async addLabel(label: string): Promise<void> {
       calls.push(['add', label]);
       if (!labels.includes(label)) labels.push(label);
     },
-    async removeLabel(label) {
+    async removeLabel(label: string): Promise<void> {
       calls.push(['remove', label]);
       labels.splice(labels.indexOf(label), 1);
     },
-    async comment(message) {
+    async comment(message: string): Promise<void> {
       calls.push(['comment', message]);
     },
   };
@@ -56,7 +57,7 @@ for (const [total, expected] of [
   [999, 'l'],
   [1000, 'xl'],
   [10000, 'xl'],
-]) {
+] as const) {
   test(`${total} changes receive size/${expected}`, () => {
     assert.equal(labelFor(total, options().sizes), `size/${expected}`);
   });
@@ -145,11 +146,11 @@ for (const [settings, total, expected] of [
     999,
     'Counted modifications (additions + deletions): 999',
   ],
-]) {
+] as const) {
   test(`logs ${expected}`, async () => {
-    const messages = [];
+    const messages: string[] = [];
     await labelPullRequest(fakeGithub(total), settings, (message) => messages.push(message));
-    assert.ok(messages[0].startsWith(expected));
+    assert.ok(messages[0]?.startsWith(expected));
   });
 }
 
@@ -159,7 +160,7 @@ for (const method of [
   'addLabel',
   'removeLabel',
   'comment',
-]) {
+] as const) {
   test(`stops immediately when ${method} fails`, async () => {
     const github = fakeGithub(1000, ['size/l']);
     github[method] = async () => {
